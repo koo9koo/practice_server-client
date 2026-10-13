@@ -1,8 +1,12 @@
+// 실습: 덧셈 요청·응답 구조를 문자열 대문자 변환 통신으로 응용
+// 각 ____________에 힌트에 맞는 함수 이름이나 식 입력
+
 #include <iostream>
 #include <cstring>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <algorithm>
 
 #define MAX_BUFFER_SIZE 256
 char msg_buffer[MAX_BUFFER_SIZE];
@@ -20,16 +24,19 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    // Get server port number
+    // 실행 인자로 받은 서버 포트 번호 변환
     server_port = atoi(argv[1]);
 
-    // [TODO: 서버 소켓 생성하기]
-    // - 서버용 소켓을 생성한다.
-    // - 이 단계는 socket() 함수를 호출하는 부분이다.
-    // - 보통은 socket(AF_INET, SOCK_STREAM, 0); 형태로 만든다.
-    // - 생성이 실패하면 에러 메시지를 출력하고 종료한다.
+    // [TODO: Create server socket]
+    // 힌트: socket()의 두 번째 인자는 통신 방식
+    // SOCK_STREAM은 TCP, SOCK_DGRAM은 UDP이므로 클라이언트와 같은 TCP 방식 선택
+    server_socket = socket(AF_INET, ____________, 0);
+    if (server_socket < 0) {
+        std::cerr << "Error: socket creation" << std::endl;
+        return -1;
+    }
 
-    // Bind an address IP:Port
+    // 서버 소켓에 IP 주소와 포트 번호 할당
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     server_addr.sin_port = htons(server_port);
@@ -42,11 +49,13 @@ int main(int argc, char *argv[]) {
     std::cout << "Addr: " << inet_addr_buf << std::endl;
     std::cout << "Port: " << ntohs(server_addr.sin_port) << std::endl;
 
-    // [TODO: 연결 요청을 기다리기]
-    // - bind() 이후에 서버가 클라이언트 연결을 기다리도록 설정한다.
-    // - 이때 listen() 함수를 사용한다.
-    // - 보통 listen(server_socket, 5); 형태로 작성한다.
-    // - 이후 accept()를 호출해서 연결을 받아들이면 된다.
+    // [TODO: Listen for incoming connections]
+    // 힌트: bind()로 주소를 할당한 뒤, accept() 전에 연결 대기 상태로 전환
+    // bind(주소 할당), listen(연결 대기), accept(연결 수락) 중 해당 함수 선택
+    if (____________(server_socket, 5) < 0) {
+        std::cerr << "Error: listen" << std::endl;
+        return -1;
+    }
 
     while (1) {
         client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_addr_len);
@@ -59,25 +68,32 @@ int main(int argc, char *argv[]) {
         std::cout << "===== Client Connected =====" << std::endl;
         std::cout << "From " << inet_addr_buf << ":" << ntohs(client_addr.sin_port) << std::endl;
 
-        // [TODO: 클라이언트가 보낸 소문자 단어 받기]
-        // - client_socket을 통해서 문자열을 수신한다.
-        // - recv() 함수를 사용한다.
-        // - 보통 recv(client_socket, msg_buffer, sizeof(msg_buffer) - 1, 0); 형태로 받는다.
-        // - 받은 길이를 저장하고, 문자열 끝에 '\0'을 붙여서 처리한다.
+        // [TODO: Receive small letter word from client]
+        // 힌트: server_socket은 연결 대기용, client_socket은 연결된 상대와의 통신용
+        // recv()의 첫 번째 인자에 실제 데이터를 주고받을 소켓 선택
+        len = recv(____________, msg_buffer, MAX_BUFFER_SIZE, 0);
+        if (len > 0) {
+            std::cout << "Received: " << msg_buffer << std::endl;
+        } else {
+            std::cerr << "Error receiving data" << std::endl;
+            close(client_socket);
+            continue;
+        }
 
-        // [TODO: 소문자를 대문자로 변환하기]
-        // - 받은 문자열을 소문자에서 대문자로 바꾼다.
-        // - 반복문을 돌면서 각 문자를 검사한다.
-        // - 소문자인 경우 'a'~'z' 범위를 판별해서 대문자로 바꾸면 된다.
-        // - 예를 들면 문자 값에서 32를 빼면 대문자가 된다.
+        // [TODO: Capitalize small letters]
+        std::string str(msg_buffer);
+        // 힌트: transform()의 마지막 인자는 각 문자에 적용할 변환 함수
+        // toupper(대문자 변환), tolower(소문자 변환) 중 서버의 처리 목적에 맞는 함수 선택
+        std::transform(str.begin(), str.end(), str.begin(), ::____________);
 
-        // [TODO: 변환된 결과를 클라이언트에게 보내기]
-        // - 변환된 문자열을 다시 client_socket으로 전송한다.
-        // - 이때 send() 함수를 사용한다.
-        // - 보통 send(client_socket, msg_buffer, strlen(msg_buffer), 0); 형태로 작성한다.
-        // - 전송이 끝나면 연결을 종료한다.
+        // [TODO: Send the result to client]
+        std::cout << "Sending: " << str << std::endl;
+        // 첫 번째 빈칸: 변환 결과 str에 c_str()을 호출하여 전송할 문자 데이터 지정
+        // 두 번째 빈칸: str.size()로 구한 길이에 널 문자 '\0'의 크기인 1바이트 추가
+        // 수신 길이 len에는 널 문자가 포함되므로 변환 결과의 길이를 기준으로 계산
+        send(client_socket, ____________, ____________, 0);
 
-        // Connection Close
+        // 클라이언트 연결 종료
         close(client_socket);
         std::cout << "===== Client Disconnected =====" << std::endl;
     }
